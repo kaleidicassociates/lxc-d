@@ -1,0 +1,13 @@
+
+High-level D (dlang) language wrapper for LXC API
+
+https://github.com/lxc/lxc/blob/master/src/lxc/lxccontainer.h
+
+https://linuxcontainers.org/lxc/documentation/
+
+
+Written 2017 by Laeeth Isharc and Kaleidic Associates Advisory Limited
+
+
+
+
