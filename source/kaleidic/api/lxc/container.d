@@ -1,4 +1,14 @@
+///
 module kaleidic.api.lxc.container;
+/**
+	LXC-D: D Language Wrapper for LXC Linux Containers
+
+	(C) 2017 by Laeeth Isharc and Kaleidic Associates Advisory Limited
+
+	MIT Licensed
+
+	This is a very early version and not at all tested - use at your own peril.
+*/
 
 
 import core.stdc.config;
@@ -13,18 +23,26 @@ import deimos.lxc.attach_options;
 import deimos.lxc.lxclock;
 import deimos.lxc.lxccontainer;
 
+///
 extern (C) nothrow @nogc
 {
+	///
 	struct lxc_log {}
+	///
 	int lxc_log_init(lxc_log* log);
+	///
 	int lxc_attach_run_command(void* payload);
+	///
 	int lxc_attach_run_shell(void* payload);
 
+	///
 	struct lxc_attach_command_t
 	{
 		char* program;
 		char**args;
 	}
+	///
+	alias lxc_attach_exec_t = int function(void* payload);
 }
 
 private const(char*) toStringzc(string s)
@@ -55,164 +73,197 @@ private const(char*)* toCArray(string[] arr)
 }
 
 
+///
 enum OpStatus
 {
 	success,
 	failure,
 }
 
+///
 struct LXCContainer
 {
 	import std.algorithm:map;
 	import core.time:Duration;
 	import std.conv:to;
 
+	///
 	lxc_container* container;
 	
+	///
 	this(string name, string configPath = null)
 	{
 		auto configpath = (configPath is null ) ? null : configPath.toStringzc;
 		this.container = lxc_container_new(name.toStringzc,configpath);
 		enforce(this.container !is null, "unable to create new LXC container "~ name~ ":" ~configPath);
+		this.addRef();
 	}
 
+	///
 	this(lxc_container* container)
 	{
 		this.container = container;
 	}
 
+	///
 	~this()
 	{
-		//dropRef();
+		dropRef();
 	}
 
+	///
 	string name()
 	{
 		auto ret = this.container.name;
 		return (ret is null) ?  null : ret.fromStringz.idup;
 	}
 
+	///
 	string configFile()
 	{
 		return (this.container.configfile is null) ? null : this.container.configfile.fromStringz.idup;
 	}
 
+	///
 	string pidFile()
 	{
 		return (this.container.pidfile is null) ? null : this.container.pidfile.fromStringz.idup;
 	}
 	
+	///
 	bool isDefined()
 	{
 		return (this.container.is_defined(this.container));
 	}
 	
+	///
 	string state()
 	{
 		return (this.container.state is null) ? null : this.container.state(container).fromStringz.idup;
 	}
 
+	///
 	bool isRunning()
 	{
 		return (this.container.is_running(this.container));
 	}
 
+	///
 	OpStatus freeze()
 	{
 		return this.container.freeze(this.container) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus unfreeze()
 	{
 		return this.container.unfreeze(this.container) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	pid_t initPid()
 	{
 		return this.container.init_pid(this.container);
 	}
 
+	///
 	OpStatus loadConfig(string filename)
 	{
 		return this.container.load_config(this.container,filename.toStringzc) ? OpStatus.success: OpStatus.failure;
 	}
 
+	///
 	OpStatus start(bool useInit = false,string[] args=cast(string[])[])
 	{
 		auto cArgs = args.map!(arg=>arg.toStringzc).array;
 		return this.container.start(this.container,useInit,cArgs.ptr) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus stop()
 	{
 		return this.container.stop(this.container) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus wantDaemonize(bool daemonize = true)
 	{
 		return this.container.want_daemonize(this.container,daemonize ? 1 : 0) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus wantCloseAllFDs(bool closeAll = true)
 	{
 		return this.container.want_close_all_fds(this.container,closeAll ? 1 : 0) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	string configFileName()
 	{
 		return this.container.config_file_name(this.container,).fromStringz.idup;
 	}
 
+	///
 	OpStatus wait(string state, Duration timeout)
 	{
 		return this.container.wait(this.container,state.toStringzc, timeout.total!"seconds".to!int) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus setConfigItem(string key, string value)
 	{
 		return this.container.set_config_item(this.container,key.toStringzc, value.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus destroy()
 	{
 		return this.container.destroy(this.container) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus saveConfig(string altFile)
 	{
 			return this.container.save_config(this.container,altFile.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus create(string t, string bdevType, BackingDeviceSpec specs, CreateFlags flags, string[] args)
 	{
 		return this.container.create(this.container,t.toStringzc, bdevType.toStringzc, specs.specs, flags.to!int, args.toCArray) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus rename(string newName)
 	{
 		return this.container.rename(this.container,newName.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus reboot()
 	{
 		return this.container.reboot(this.container,) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus shutdown(Duration timeout)
 	{
 		return this.container.shutdown(this.container,timeout.total!"seconds".to!int) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	void clearConfig()
 	{
 		this.container.clear_config(this.container);
 	}
 	
+	///
 	OpStatus clearConfigItem(string key)
 	{
 		return this.container.clear_config_item(this.container,key.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	string getConfigItem(string key)
 	{
 		char[] retv;
@@ -222,12 +273,14 @@ struct LXCContainer
 		return retv.idup;
 	}
 
+	///
 	string getRunningConfigItem(string key)
 	{
 		auto ret = this.container.get_running_config_item(this.container,key.toStringzc);
 		return (ret is null) ? null : ret.fromStringz.idup;
 	}
 
+	///
 	string getKeys(string keyPrefix)
 	{
 		char[] ret;
@@ -238,6 +291,7 @@ struct LXCContainer
 		return ret.idup;
 	}
 
+	///
 	string[] getInterfaces()
 	{
 		string[] ret;
@@ -246,6 +300,7 @@ struct LXCContainer
 		return ret;
 	}
 
+	///
 	string[] getIPs(string interfaceString, string family, int scopeID)
 	{
 		string[] ret;
@@ -254,6 +309,7 @@ struct LXCContainer
 		return ret;
 	}
 
+	///
 	string getCGroupItem(string subsys)
 	{
 		char[] ret;
@@ -265,22 +321,26 @@ struct LXCContainer
 		return ret.idup;
 	}
 
+	///
 	OpStatus setCGroupItem(string subsys, string value)
 	{
 		return this.container.set_cgroup_item(this.container,subsys.toStringzc, value.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	string getConfigPath()
 	{
 		return this.container.get_config_path(this.container).fromStringz.idup;
 	}
 
+	///
 	OpStatus setConfigPath(string path)
 	{
 		return this.container.set_config_path(this.container,path.toStringzc) ? OpStatus.success:OpStatus.failure;
 	}
 
 
+	///
 	LXCContainer clone(string newName, string lxcPath, int flags, string bDevType, ubyte[] bDevData, ulong newSize, string[] hookArgs)
 	{
 		auto result = this.container.clone(this.container,newName.toStringzc,lxcPath.toStringzc,flags,bDevType.toStringzc,cast(char*) bDevData.ptr,newSize, cast(char**)hookArgs.toCArray);
@@ -288,6 +348,7 @@ struct LXCContainer
 	}
 	
 
+	///
 	auto consoleGetFD()
 	{
 		import std.typecons:tuple;
@@ -296,113 +357,128 @@ struct LXCContainer
 		return tuple(status,ttyNum,masterFD);
 	}
 
+	///
 	OpStatus console(int ttyNum, int stdinfd, int stdoutfd, int stderrfd, int escape)
 	{
 		return this.container.console(this.container,ttyNum, stdinfd, stdoutfd, stderrfd, escape) ? OpStatus.success : OpStatus.failure;
 	}
 
-/*	OpStatus attach(AttachExec execFunction, void* execPayload, AttachOptions attachOptions, pid_t* attachedProcess)
+	///
+	OpStatus attach(lxc_attach_exec_t execFunction, void* execPayload, AttachOptions attachOptions, pid_t* attachedProcess)
 	{
-		return this.container.attach(this.container,execFunction.ptr, execPayload, attachOptions.options, attachedProcess) ? OpStatus.success : OpStatus.failure;
+		return this.container.attach(this.container,execFunction, execPayload, attachOptions.options, attachedProcess) ? OpStatus.success : OpStatus.failure;
 	}
 	// int function(lxc_container* c, lxc_attach_exec_t exec_function, void* exec_payload, lxc_attach_options_t* options, pid_t* attached_process) attach;
 
-*/
+
+	///
 	OpStatus attachRunWait(AttachOptions attachOptions, string program, string[] args)
 	{
 		return this.container.attach_run_wait(this.container,attachOptions.options, program.toStringzc, args.toCArray) ? OpStatus.success : OpStatus . failure;
 	}
 
 
+	///
 	OpStatus snapShot(string commentFile)
 	{
 		return this.container.snapshot(this.container,commentFile.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 
 
-/*	SnapShot[] listSnapshots()
+	///
+	SnapShot[] listSnapshots()
 	{
-		lxc_snapshot* snapshots;
-		auto result = thix.container.snapshot_list(&snapshots);
-		if (result)
-		int function(lxc_container* c, lxc_snapshot** snapshots) snapshot_list;
-
-	Snapshot[] listSnapshots()
-	{
-		Snapshot[] snapshots;
-		auto result = this.container.snapshot_list(null);
+		lxc_snapshot*[] snapshots;
+		auto result = this.container.snapshot_list(this.container,null);
 		if (result<=0)
-			return snaphots;
+			return snapshots.map!(snapshot=>SnapShot(snapshot)).array;
 		snapshots.length = result;
-		auto result = this.container.snapshot_list(snapshots.ptr);
+		result = this.container.snapshot_list(this.container,snapshots.ptr);
 		enforce(snapshots.length == result);
-		return snaphots;
+		return snapshots.map!(snapshot=> SnapShot(snapshot)).array;
 	}
-*/
+
+	///
 	OpStatus snapshotRestore(string snapName, string newName)
 	{
 		return this.container.snapshot_restore(this.container,snapName.toStringzc, newName.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 	
+	///
 	OpStatus snapshotDestroy(string name)
 	{
 		return this.container.snapshot_destroy(this.container,name.toStringzc) ? OpStatus.success: OpStatus.failure;
 	}
 
+	///
 	bool mayControl()
 	{
 		return this.container.may_control(this.container);
 	}
 	
+	///
 	OpStatus addDeviceNode(string sourcePath, string destPath)
 	{
 		return this.container.add_device_node(this.container,sourcePath.toStringzc, destPath.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus removeDeviceNode(string sourcePath, string destPath)
 	{
 		return this.container.remove_device_node(this.container,sourcePath.toStringzc, destPath.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 	
+	///
 	OpStatus attachInterface(string dev, string destDev)
 	{
 		return this.container.attach_interface(this.container,dev.toStringzc, destDev.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus detachInterface(string dev, string destDev)
 	{
 		return this.container.detach_interface(this.container,dev.toStringzc, destDev.toStringzc) ? OpStatus.success : OpStatus.failure;
 	}
-/*
+
+	///
 	OpStatus checkpoint(string directory, bool stop, bool verbose = false)
 	{
-		return this.container.checkpoint(this.container,directory.toStringzc, stop,verbose) ? OpStatus.success: OpStatus.failure;
+		// deimos should declare directory as const(char*)
+		return this.container.checkpoint(this.container,cast(char*) directory.toStringzc, stop,verbose) ? OpStatus.success: OpStatus.failure;
 	}
 
+	///
 	OpStatus restore(string directory, bool verbose = false)
 	{
-		return this.container.restore(this.container,directory.toStringzc,verbose) ? OpStatus.success : OpStatus.failure;
+		// deimos should declare directory as const(char*)
+		return this.container.restore(this.container,cast(char*)directory.toStringzc,verbose) ? OpStatus.success : OpStatus.failure;
 	}
-*/
+
+	///
 	OpStatus destroyWithSnapshots()
 	{
 		return this.container.destroy_with_snapshots(this.container) ? OpStatus.success : OpStatus.failure;
 	}
 	
+	///
 	OpStatus snaphotDestroyAll()
 	{
 		return this.container.snapshot_destroy_all(this.container) ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus migrate(MigrateCommand command, MigrateOptions migrateOptions, uint size)
 	{
 		return this.container.migrate(this.container,command.to!uint, migrateOptions.options, size) ? OpStatus.success : OpStatus.failure;
 	}
+
+	///
 	OpStatus addRef()
 	{
 		return this.container.lxc_container_get() ? OpStatus.success : OpStatus.failure;
 	}
 
+	///
 	OpStatus dropRef()
 	{
 		return this.container.lxc_container_put() ? OpStatus.success : OpStatus.failure;		
@@ -410,35 +486,49 @@ struct LXCContainer
 }
 
 
-struct Snapshot
+	///
+struct SnapShot
 {
+	///
 	lxc_snapshot* snapshot;
 
+	///
 	string name()
 	{
 		return this.snapshot.name.fromStringz.idup;
 	}
 
+	///
 	string commentPathName()
 	{
 		return this.snapshot.comment_pathname.fromStringz.idup;
 	}
+
+	///
 	string timeStamp()
 	{
 		return this.snapshot.timestamp.fromStringz.idup;
 	}
+
+	///
 	string name()
 	{
 		return this.snapshot.name.fromStringz.idup;
 	}
+
+	///
 	string commentPathName()
 	{
 		return this.snapshot.comment_pathname.fromStringz.idup;
 	}
+
+	///
 	string lxcPath()
 	{
 		return this.snapshot.lxcpath.fromStringz.idup;
 	}
+
+	///
 	~this()
 	{
 		if (this.snapshot !is null)
@@ -447,6 +537,7 @@ struct Snapshot
 	}
 }
 
+	///
 enum FileSystemType
 {
 	none,
@@ -458,6 +549,7 @@ enum FileSystemType
 	ceph,
 }
 
+	///
 FileSystemType parseFileSystemType(string type)
 {
 	import std.typecons:EnumMembers;
@@ -471,50 +563,60 @@ FileSystemType parseFileSystemType(string type)
 	throw new Exception("unable to parse file system type: "~ type);
 }
 
+///
 struct BackingDeviceSpec
 {
+	///
 	bdev_specs* specs;
 
+	///
 	FileSystemType fileSystemType()
 	{
 		return specs.fstype.fromStringz.idup.parseFileSystemType();
 	}
 
+	///
 	ulong fileSystemSize()
 	{
 		return specs.fssize;
 	}
 
+	///
 	string zfsRoot()
 	{
 		enforce(this.fileSystemType == FileSystemType.zfs);
 		return this.specs.zfsroot.fromStringz.idup;
 	}
 
+	///
 	string volumeGroup()
 	{
 		enforce(this.fileSystemType == FileSystemType.lvm);
 		return this.specs.vg.fromStringz.idup;
 	}
 
+	///
 	string logicalVolume()
 	{
 		enforce(this.fileSystemType == FileSystemType.lvm);
 		return this.specs.lv.fromStringz.idup;		
 	}
 
+	///
 	string thinPool()
 	{
 		enforce(this.fileSystemType == FileSystemType.lvm);
 		return this.specs.thinpool.fromStringz.idup;		
 	}
 
+	///
 	string directory()
 	{
 		enforce ((this.fileSystemType == FileSystemType.dir) || (this.fileSystemType == FileSystemType.none));
 		return this.specs.dir.fromStringz.idup;
 	}
 
+	///
 	string rbdImageName()
 	{
 		enforce(this.fileSystemType == FileSystemType.ceph);
@@ -522,6 +624,7 @@ struct BackingDeviceSpec
 
 	}
 
+	///
 	string rbdPoolName()
 	{
 		enforce(this.fileSystemType == FileSystemType.ceph);
@@ -529,6 +632,7 @@ struct BackingDeviceSpec
 	}
 }
 
+///
 enum MigrateCommand
 {
 	preDump,
@@ -536,79 +640,97 @@ enum MigrateCommand
 	restore,
 }
 
+///
 struct MigrateOptions
 {
+	///
 	migrate_opts* options;
 
+	///
 	string directory()
 	{
 		return this.options.directory.fromStringz.idup;
 	}
 
+	///
 	auto ref setDirectory(string name)
 	{
 		this.options.directory= cast(char*) name.toStringz;
 		return this;
 	}
 
+	///
 	bool verbose()
 	{
 		return this.options.verbose;
 	}
 
+	///
 	auto ref setVerbose(bool setting)
 	{
 		this.options.verbose = setting;
 		return this;
 	}
 
+	///
 	bool stop()
 	{
 		return this.options.stop;
 	}
 
+	///
 	auto ref setStop(bool setting)
 	{
 		this.options.stop = setting;
 		return this;
 	}
 
+	///
 	string preDumpDir()
 	{
 		return this.options.predump_dir.fromStringz.idup;
 	}
 
+	///
 	auto ref setPreDumpDir(string dir)
 	{
 		this.options.predump_dir = cast(char*)dir.toStringzc;
 		return this;
 	}
 
+	///
 	string pageServerAddress()
 	{
 		return this.options.pageserver_address.fromStringz.idup;
 	}
 
+	///
 	auto ref setPageServerAddress(string address)
 	{
 		this.options.pageserver_address = cast(char*)address.toStringzc;
 		return this;
 	}
 
+	///
 	string pageServerPort()
 	{
 		return this.options.pageserver_port.fromStringz.idup;
 	}
 
+	///
 	auto ref setPageServerPort(string port)
 	{
 		this.options.pageserver_port = cast(char*)port.toStringzc;
 		return this;
 	}
+
+	///
 	bool preservesINodes()
 	{
 		return this.options.preserves_inodes;
 	}
+
+	///
 	auto ref setPreservesINodes(bool setting)
 	{
 		this.options.preserves_inodes = setting;
@@ -618,23 +740,30 @@ struct MigrateOptions
 }
 
 
+	///
 string getGlobalConfigItem(string key)
 {
 	return lxc_get_global_config_item(key.toStringzc).fromStringz.idup;
 }
 
+	///
 string getVersion()
 {
 	return lxc_get_version().fromStringz.idup;
 }
 
+	///
 struct ContainersResult
 {
+	///
 	OpStatus status = OpStatus.failure;
+	///
 	string[] names;
+	///
 	LXCContainer[] containers;
 }
 
+///
 ContainersResult listDefinedContainers(string path)
 {
 	import std.algorithm:map;
@@ -657,6 +786,7 @@ ContainersResult listDefinedContainers(string path)
 }
 
 
+///
 ContainersResult listActiveContainers(string path)
 {
 	import std.algorithm:map;
@@ -678,6 +808,7 @@ ContainersResult listActiveContainers(string path)
 	return ret;
 }
 
+///
 ContainersResult listAllContainers(string path)
 {
 	import std.algorithm:map;
@@ -700,16 +831,19 @@ ContainersResult listAllContainers(string path)
 }
 
 
+///
 OpStatus initLog(lxc_log* log)
 {
 	return lxc_log_init(log) ? OpStatus.success : OpStatus.failure;
 }
 
+///
 void closeLog()
 {
 	lxc_log_close();
 }
 
+///
 string[] getWaitStates()
 {
 	import std.algorithm:map;
@@ -724,6 +858,7 @@ string[] getWaitStates()
 
 
 
+///
 enum CreateFlags
 {
 	quiet  = (1 << 0),
@@ -731,12 +866,14 @@ enum CreateFlags
 }
 
 
+///
 enum AttachEnvPolicy
 {
 	keepEnv = 0,
 	clearEnv = 1,
 }
 
+///
 enum AttachFlags
 {
 	moveToCGroup  = LXC_ATTACH_MOVE_TO_CGROUP,
@@ -750,34 +887,40 @@ enum AttachFlags
 }
 
 
-alias lxc_attach_exec_t = int function(void* payload);
 
+///
 struct AttachOptions
 {
+	///
 	lxc_attach_options_t* options;
 
+	///
 	AttachFlags attachFlags()
 	{
 		return cast(AttachFlags) this.options.attach_flags;
 	}
 
+	///
 	auto ref setAttachFlags(AttachFlags flags)
 	{
 		this.options.attach_flags = cast(int) flags;
 		return this;
 	}
 
+	///
 	string initialCwd()
 	{
 		return this.options.initial_cwd.fromStringz.idup;
 	}
 	
+	///
 	auto ref setInitialCwd(string cwd)
 	{
 		this.options.initial_cwd = cast(char*)cwd.toStringzc;
 		return this;
 	}
 
+	///
 	int namespaces()
 	{
 		return this.options.namespaces;
@@ -789,96 +932,115 @@ struct AttachOptions
 		return this;
 	}
 
+	///
 	c_long personality()
 	{
 		return this.options.personality;
 	}
 
+	///
 	auto ref setPersonality(c_long personality)
 	{
 		this.options.personality = personality;
 		return this;
 	}
 
+	///
 	uid_t uid()
 	{
 		return this.options.uid;
 	}
 
+	///
 	auto ref setUID(uid_t uid)
 	{
 		this.options.uid = uid;
 		return this;
 	}
 
+	///
 	gid_t gid()
 	{
 		return this.options.gid;
 	}
 
+	///
 	auto ref setGID(gid_t gid)
 	{
 		this.options.gid = gid;
 		return this;
 	}
 
+	///
 	lxc_attach_env_policy_t envPolicy()
 	{
 		return this.options.env_policy;
 	}
 
+	///
 	auto ref setEnvPolicy(lxc_attach_env_policy_t policy)
 	{
 		this.options.env_policy = policy;
 		return this;
 	}
 
+	///
 	string[] extraEnvVars()
 	{
 		return this.options.extra_env_vars.fromCArray;
 	}
 
+	///
 	auto ref setExtraEnvVars(string[] vars)
 	{
 		this.options.extra_env_vars = cast(char**) vars.toCArray;
 	}
 
+	///
 	string[] extraKeepEnv()
 	{
 		return this.options.extra_keep_env.fromCArray;
 	}
 
+	///
 	auto ref setExtraKeepEnv(string[] vars)
 	{
 		this.options.extra_keep_env = cast(char**) vars.toCArray;
 	}
 
+	///
 	auto stdIn()
 	{
 		return this.options.stdin_fd;
 	}
 
+	///
 	auto ref setStdIn(int fd)
 	{
 		this.options.stdin_fd = fd;
 		return this;
 	}
 
+	///
 	auto stdOut()
 	{
 		return this.options.stdout_fd;
 	}
 
+	///
 	auto ref setStdOut(int fd)
 	{
 		this.options.stdout_fd = fd;
 		return this;
 	}
 
+	///
 	auto stdErr()
 	{
 		return this.options.stderr_fd;
 	}
+
+	///
 	auto ref setStdErr(int fd)
 	{
 		this.options.stderr_fd = fd;
@@ -886,33 +1048,41 @@ struct AttachOptions
 	}
 }
 
+///
 enum LXC_ATTACH_OPTIONS_DEFAULT = lxc_attach_options_t(LXC_ATTACH_DEFAULT, -1, -1, null, -1, -1, cast(lxc_attach_env_policy_t)AttachEnvPolicy.keepEnv, null, null, 0, 1, 2);
 
 
+///
 struct AttachCommand
 {
+	///
 	lxc_attach_command_t* command;
 
+	///
 	this(lxc_attach_command_t* command)
 	{
 		this.command = command;
 	}
 
+	///
 	string program()
 	{
 		return this.command.program.fromStringz.idup;
 	}
 
+	///
 	auto ref setProgram(string program)
 	{
 		this.command.program = cast(char*) program.toStringzc;
 	}
 
+	///
 	string[] args()
 	{
 		return this.command.args.fromCArray;
 	}
 
+	///
 	auto ref setArgs(string[] args)
 	{
 		this.command.args = cast(char**) args.toCArray;
@@ -922,7 +1092,7 @@ struct AttachCommand
 
 
 
-
+///
 unittest
 {
 	import std.stdio;
