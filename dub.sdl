@@ -1,0 +1,7 @@
+name "lxc-d"
+description "D Language wrapper for LXC"
+authors "Laeeth Isharc and Kaleidic Associates Advisory Limited"
+copyright "Copyright © 2017, Laeeth Isharc and Kaleidic Associates Advisory Limited"
+license "MIT"
+dependency "lxc" version="~>1.0.0"
+targetType "library"
